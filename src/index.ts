@@ -1,1 +1,2 @@
-console.log('Test')
+import expressApp from './app/app';
+let app = expressApp;
