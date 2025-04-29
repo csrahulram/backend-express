@@ -1,91 +1,83 @@
-import { GraphQLSchema, GraphQLObjectType, GraphQLString, buildSchema, GraphQLNonNull, GraphQLID } from 'graphql';
+import { buildSchema, GraphQLScalarType, Kind } from 'graphql';
+import mongoose from 'mongoose';
 
-/**
- * Construct a GraphQL schema and define the necessary resolvers.
- *
- * type Query {
- *   hello: String
- * }
- */
-
-// In-memory Todo storage
-let todos: any[] = [];
-let idCounter = 1;
-
-// GraphQL Schema
-export const schemaDef = buildSchema(`
-    type Todo {
-      id: ID!
-      title: String!
-      completed: Boolean!
-    }
-  
-    type Query {
-      todos: [Todo!]!
-      todo(id: ID!): Todo
-    }
-  
-    type Mutation {
-      addTodo(title: String!): Todo
-      toggleTodo(id: ID!): Todo
-      deleteTodo(id: ID!): Boolean
-    }
-  `);
-
-// Resolvers
-const root = {
-  todos: () => todos,
-  todo: ({ id }: any) => todos.find(t => t.id === id),
-  addTodo: ({ title }: any) => {
-    const todo = { id: String(idCounter++), title, completed: false };
-    todos.push(todo);
-    return todo;
+const dateScalar = new GraphQLScalarType({
+  name: "Date",
+  description: "Date custom scalar type",
+  serialize(value: any) {
+    return value.getTime() // Convert outgoing Date to integer for JSON
   },
-  toggleTodo: ({ id }: any) => {
-    const todo = todos.find(t => t.id === id);
-    if (todo) todo.completed = !todo.completed;
-    return todo;
+  parseValue(value: any) {
+    return new Date(value) // Convert incoming integer to Date
   },
-  deleteTodo: ({ id }: any) => {
-    const index = todos.findIndex(t => t.id === id);
-    if (index !== -1) {
-      todos.splice(index, 1);
-      return true;
+  parseLiteral(ast) {
+    if (ast.kind === Kind.INT) {
+      // Convert hard-coded AST string to integer and then to Date
+      return new Date(parseInt(ast.value, 10))
     }
-    return false;
+    // Invalid hard-coded value (not an integer)
+    return null
+  },
+})
+
+const TodoSchema = new mongoose.Schema({
+  title: String,
+  description: String,
+  createdDate: Date,
+  status: String,
+  dueDate: Date
+})
+
+const TodoModel = mongoose.model(
+  'todo',
+  TodoSchema,
+  'todo',
+);
+
+// Define GraphQL Schema
+export const schema = buildSchema(`
+  scalar Date,
+  type Todo {
+    title: String,
+    description: String,
+    createdDate: Date,
+    status: String,
+    dueDate: Date
   }
+
+  type Query {
+    todos: [Todo]
+    todo(id: ID!): Todo
+  }
+
+  type Mutation {
+    createTodo(title: String!, description: String): Todo
+    updateTodo(id: ID!, title: String, description: String): Todo
+    deleteTodo(id: ID!): Todo
+  }
+`);
+
+
+// Define Resolvers
+export const root = {
+  todos: async () => {
+    return await TodoModel.find()
+  },
+  todo: async ({ id }: any) => {
+    return await TodoModel.findById(id);
+  },
+  createTodo: async ({ title, description }: any) => {
+    const todo = new TodoModel({ title, description });
+    await todo.save();
+    return todo;
+  },
+  updateTodo: async ({ id, title, description }: any) => {
+    return await TodoModel.findByIdAndUpdate(
+      id,
+      { $set: { title, description } }
+    );
+  },
+  deleteTodo: async ({ id }: any) => {
+    return await TodoModel.findByIdAndDelete(id);
+  },
 };
-
-export const schema = new GraphQLSchema({
-  query: new GraphQLObjectType({
-    name: 'Query',
-    fields: {
-      hello: {
-        type: GraphQLString,
-        args: {
-          id: { type: new GraphQLNonNull(GraphQLID) },
-        },
-        resolve: async (_parent, { id }) => {
-          const result = await dbOperation(id);
-
-          return result + id;
-
-        },
-      },
-      world: {
-        type: GraphQLString,
-        args: {
-          id: { type: new GraphQLNonNull(GraphQLID) },
-        },
-        resolve: (_parent, { id }) => {
-          return 'World' + id;
-        },
-      },
-    },
-  }),
-});
-
-const dbOperation = async (id: string) => {
-  await new Promise((resolve) => setTimeout(resolve, 2000));
-  return `User-${id}`
-}
