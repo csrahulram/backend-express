@@ -1,7 +1,7 @@
 import dotenv from 'dotenv'
 dotenv.config({ path: '.env.dev' });
 
-import express from 'express';
+import express, { Request, Response } from 'express';
 import http from 'http';
 import https from 'https';
 import fs from 'fs';
@@ -9,14 +9,37 @@ import { createHandler } from 'graphql-http/lib/use/express';
 import { root, schema } from '../schema/schema';
 import mongoose from 'mongoose';
 
+import passport from 'passport';
+
+import googlePassport from 'passport-google-oauth20';
+
+
+
 const DB_URL = process.env.DB_URL as string;
 const CHAIN_CRT = process.env.CHAIN_CRT || '';
 const KEY = process.env.KEY || '';
 const PORT = 3000;
 
+const GoogleStrategy = googlePassport.Strategy;
+
 const app = express();
 
 app.use(require('cors')());
+
+// app.use(session())
+
+app.get('/auth/google', passport.authenticate('google', {
+    scope: ['profile', 'email']
+}));
+
+app.get('/api/routes', (req, res) => {
+    res.json([
+        {
+            "path": "list",
+            "loadComponent": "ListComponent"
+        }
+    ]);
+});
 
 app.all('/graphql', createHandler({ schema, rootValue: root }));
 

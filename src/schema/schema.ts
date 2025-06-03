@@ -54,6 +54,7 @@ export const schema = buildSchema(`
     createTodo(title: String!, description: String): Todo
     updateTodo(id: ID!, title: String, description: String): Todo
     deleteTodo(id: ID!): Todo
+    viewTodo(id: ID!): Todo
   }
 `);
 
@@ -78,6 +79,10 @@ export const root = {
     );
   },
   deleteTodo: async ({ id }: any) => {
+    return await TodoModel.findByIdAndDelete(id);
+  },
+
+  viewTodo: async ({ id }: any) => {
     return await TodoModel.findByIdAndDelete(id);
   },
 };
